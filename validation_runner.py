@@ -255,3 +255,65 @@ def summarize(rows):
         }
 
     return summary
+
+def run_suite(args):
+    output_dir = args.output
+    output_dir.mkdir(parents=True, exist_ok=False)
+
+    schedule = [
+        workload
+        for workload in ("cpu", "memory")
+        for _ in range(args.runs)
+    ]
+    random.Random(args.seed).shuffle(schedule)
+
+    write_json(output_dir / "metadata.json", {
+        "started_utc": datetime.now(timezone.utc).isoformat(),
+        "platform": platform.platform(),
+        "machine": platform.machine(),
+        "python_version": sys.version,
+        "logical_cpu_count": os.cpu_count(),
+        "configuration": {
+            "runs_per_workload": args.runs,
+            "timeout_s": args.timeout,
+            "cpu_iterations": args.cpu_iterations,
+            "memory_mib": args.memory_mib,
+            "memory_passes": args.memory_passes,
+            "seed": args.seed,
+        },
+        "schedule": schedule,
+    })
+
+    rows = []
+    fields = [
+        "run_id", "workload", "status", "returncode",
+        "process_elapsed_s", "workload_elapsed_s",
+        "checksum", "error", "stdout_file", "stderr_file",
+    ]
+
+    with (output_dir / "results.csv").open(
+        "w", newline="", encoding="utf-8"
+    ) as csv_file:
+        writer = csv.DictWriter(csv_file, fieldnames=fields)
+        writer.writeheader()
+
+        for index, workload in enumerate(schedule, start=1):
+            run_id = f"{index:03d}_{workload}"
+            row = execute_one(workload, run_id, args, output_dir)
+            rows.append(row)
+            writer.writerow(row)
+            csv_file.flush()
+
+            print(
+                f"{run_id}: {row['status']} "
+                f"(process time: {row['process_elapsed_s']:.3f}s)",
+                flush=True,
+            )
+
+    summary = summarize(rows)
+    write_json(output_dir / "summary.json", summary)
+    print(json.dumps(summary, indent=2))
+
+    return 0 if all(row["status"] == "passed" for row in rows) else 1
+
+
