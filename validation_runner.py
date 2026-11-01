@@ -97,3 +97,64 @@ def run_worker(args):
 
     print(json.dumps(result), flush=True)
 
+"""
+Check that a successful process also returned a valid result
+"""
+def validate_worker_result(workload, payload, args):
+    if not isinstance(payload, dict):
+        raise ValueError("Worker result must be a JSON object")
+
+    if payload.get("workload") != workload:
+        raise ValueError("Worker returned the wrong workload name")
+
+    elapsed = payload.get("workload_elapsed_s")
+    if (
+        isinstance(elapsed, bool)
+        or not isinstance(elapsed, (int, float))
+        or not math.isfinite(elapsed)
+        or elapsed <= 0
+    ):
+        raise ValueError("Worker returned an invalid elapsed time")
+
+    if workload == "cpu":
+        if payload.get("iterations") != args.cpu_iterations:
+            raise ValueError("Worker returned an unexpected iteration count")
+
+        # independently calculate the expected final value using an affine
+        # transform raised to a power in O(log n), rather than rerunning the loop
+        multiplier, increment = 1664525, 1013904223
+        combined_multiplier, combined_increment = 1, 0
+        remaining = args.cpu_iterations
+        mask = 0xFFFFFFFF
+
+        while remaining:
+            if remaining & 1:
+                combined_increment = (
+                    multiplier * combined_increment + increment
+                ) & mask
+                combined_multiplier = (
+                    multiplier * combined_multiplier
+                ) & mask
+
+            increment = (multiplier * increment + increment) & mask
+            multiplier = (multiplier * multiplier) & mask
+            remaining >>= 1
+
+        expected = (
+            combined_multiplier * 0x12345678 + combined_increment
+        ) & mask
+    else:
+        size_bytes = args.memory_mib * 1024 * 1024
+
+        if (
+            payload.get("allocated_bytes") != size_bytes
+            or payload.get("passes") != args.memory_passes
+        ):
+            raise ValueError("Worker returned an unexpected memory config")
+
+        expected = size_bytes * sum(
+            (index + 1) % 256 for index in range(args.memory_passes)
+        )
+
+    if payload.get("checksum") != expected:
+        raise ValueError("worker checksum did not match the expected result")
