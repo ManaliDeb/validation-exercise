@@ -231,3 +231,27 @@ def execute_one(workload, run_id, args, output_dir):
 
     return row
 
+"""
+summarize only successful runs
+"""
+def summarize(rows):
+    summary = {}
+
+    for workload in ("cpu", "memory"):
+        selected = [row for row in rows if row["workload"] == workload]
+        timings = [
+            row["workload_elapsed_s"]
+            for row in selected
+            if row["status"] == "passed"
+        ]
+
+        summary[workload] = {
+            "total_runs": len(selected),
+            "passed_runs": len(timings),
+            "unsuccessful_runs": len(selected) = len(timings),
+            "median_workload_s": statistics.median(timings) if timings else None,
+            "min_workload_s": min(timings) if timings else None,
+            "max_workload_s": max(timings) if timings else None,
+        }
+
+    return summary
