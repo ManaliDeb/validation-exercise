@@ -46,3 +46,36 @@ def cpu_workload(iterations):
         "checksum": value,
         "iterations": iterations,
     }
+
+"""
+Allocate a buffer, then write and read each byte on every pass
+"""
+def memory_workload(size_mib, passes):
+    size_bytes = size_mib * 1024 * 1024
+    buffer = bytearray(size_bytes)
+    checksum = 0
+
+    for pass_index in range(passes):
+        expected_byte = (pass_index + 1) % 256
+
+        # python-level byte access: not a DRAM-bandwidth benchmark
+        for index in range(size_bytes):
+            buffer[index] = expected_byte
+
+        observed_sum = sum(buffer)
+        expected_sum = expected_byte * size_bytes
+
+        if observed_sum != expected_sum:
+            raise RuntimeError(
+                f"Buffer check failed on pass {pass_index}: "
+                f"expected {expected_sum}, observed {observed_sum}"
+            )
+
+        checksum += observed_sum
+
+    return {
+        "checksum": checksum,
+        "allocated_bytes": size_bytes,
+        "passes": passes,
+    }
+
