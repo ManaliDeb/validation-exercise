@@ -33,3 +33,16 @@ def positive_float(value):
 def write_json(path, data):
     path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
 
+"""
+Exercise integer arithmetic with deterministic checksum
+"""
+def cpu_workload(iterations):
+    value = 0x12345678
+
+    for _ in range(iterations):
+        value = (1664525 * value + 1013904223) & 0xFFFFFFFF
+
+    return {
+        "checksum": value,
+        "iterations": iterations,
+    }
