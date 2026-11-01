@@ -79,3 +79,21 @@ def memory_workload(size_mib, passes):
         "passes": passes,
     }
 
+"""
+Execute one workload and emit a machine-readable result
+"""
+def run_worker(args):
+    start = time.perf_counter()
+
+    if args.worker == "cpu":
+        result = cpu_workload(args.cpu_iterations)
+    else:
+        result = memory_workload(args.memory_mib, args.memory_passes)
+
+    result.update({
+        "workload": args.worker,
+        "workload_elapsed_s": time.perf_counter() - start,
+    })
+
+    print(json.dumps(result), flush=True)
+
