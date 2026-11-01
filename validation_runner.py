@@ -24,3 +24,12 @@ def positive_int(value):
         raise argparse.ArgumentTypeError("must be greater than zero")
     return number
 
+def positive_float(value):
+    number = float(value)
+    if not math.isfinite(number) or number <= 0:
+        raise argparse.ArgumentTypeError("must be finite and greater than zero")
+    return number
+
+def write_json(path, data):
+    path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
+
