@@ -158,3 +158,76 @@ def validate_worker_result(workload, payload, args):
 
     if payload.get("checksum") != expected:
         raise ValueError("worker checksum did not match the expected result")
+
+"""
+launch isolated worker, enforce timeout, retain output
+"""
+def execute_one(workload, run_id, args, output_dir):
+    stdout_path = output_dir / f"{run_id}.stdout.txt"
+    stderr_path = output_dir / f"{run_id}.stderr.txt"
+
+    command = [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        "--worker", workload,
+        "--cpu-iterations", str(args.cpu_iterations),
+        "--memory-mib", str(args.memory_mib),
+        "--memory-passes", str(args.memory_passes),
+    ]
+
+    row = {
+        "run_id": run_id,
+        "workload": workload,
+        "status": "error",
+        "returncode": "",
+        "process_elapsed_s": "",
+        "workload_elapsed_s": "",
+        "checksum": "",
+        "error": "",
+        "stdout_file": stdout_path.name,
+        "stderr_file": stderr_path.name,
+    }
+
+    start = time.perf_counter()
+
+    with stdout_path.open("w", encoding="utf-8") as stdout_file, \
+            stderr_path.open("w", encoding="utf-8") as stderr_file:
+        try:
+            completed = subprocess.run(
+                command,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                timeout=args.timeout,
+                check=False,
+            )
+            row["returncode"] = completed.returncode
+
+            if completed.returncode != 0:
+                row["status"] = "failed"
+                row["error"] = "Worker exited with a nonzero return code"
+            else:
+                row["status"] = "completed"
+
+        except subprocess.TimeoutExpired:
+            # subprocess.run kills and waits for this worker on timeout
+            row["status"] = "timeout"
+            row["error"] = f"Worker exceeded {args.timeout} seconds"
+
+        except OSError as exc:
+            row["error"] = str(exc)
+
+    row["process_elapsed_s"] = time.perf_counter() - start
+
+    if row["status"] == "completed":
+        try:
+            payload = json.loads(stdout_path.read_text(encoding="utf-8"))
+            validate_worker_result(workload, payload, args)
+            row["workload_elapsed_s"] = payload["workload_elapsed_s"]
+            row["checksum"] = payload["checksum"]
+            row["status"] = "passed"
+        except (ValueError, TypeError, KeyError) as exc:
+            row["status"] = "invalid_result"
+            row["error"] = str(exc)
+
+    return row
+
