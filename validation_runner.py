@@ -248,7 +248,7 @@ def summarize(rows):
         summary[workload] = {
             "total_runs": len(selected),
             "passed_runs": len(timings),
-            "unsuccessful_runs": len(selected) = len(timings),
+            "unsuccessful_runs": len(selected) - len(timings),
             "median_workload_s": statistics.median(timings) if timings else None,
             "min_workload_s": min(timings) if timings else None,
             "max_workload_s": max(timings) if timings else None,
