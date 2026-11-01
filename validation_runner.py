@@ -317,3 +317,28 @@ def run_suite(args):
     return 0 if all(row["status"] == "passed" for row in rows) else 1
 
 
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--worker", choices=("cpu", "memory"),
+                        help=argparse.SUPPRESS)
+    parser.add_argument("--runs", type=positive_int, default=5)
+    parser.add_argument("--timeout", type=positive_float, default=30.0)
+    parser.add_argument("--cpu-iteations", type=positive_int, default=2_000_000)
+    parser.add_argument("--memory-mib", type=positive_int, default=8)
+    parser.add_argument("--memory-passes", type=positive_int, default=3)
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--output", type=Path,
+                        default=Path("results") / datetime.now(
+                            timezone.utc
+                        ).strftime("%Y%m%dT%H%M%S_%fZ"))
+
+    args = parser.parse_args()
+
+    if args.worker:
+        run_worker(args)
+        return 0
+
+    return run_suite(args)
+
+if __name__ == "__main__":
+    sys.exit(main())
